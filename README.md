@@ -11,7 +11,7 @@ A local bridge server that watches AI coding agent session files and broadcasts 
 ### Supported Agents
 
 - **Claude Code** — fully supported today
-- **Cursor** — coming soon
+- **Cursor** — fully supported
 - **Codex** — coming soon
 - **Antigravity** — coming soon
 - More to follow
@@ -65,6 +65,7 @@ pixelhq
 |------|-------------|---------|
 | `--port <number>` | WebSocket server port | `8765` |
 | `--claude-dir <path>` | Path to Claude config directory | auto-detected |
+| `--cursor-dir <path>` | Path to Cursor config directory | auto-detected |
 | `--yes`, `-y` | Skip interactive prompts (non-interactive mode) | |
 | `--verbose` | Show detailed debug logging | |
 | `--help`, `-h` | Show help message | |
@@ -76,11 +77,14 @@ pixelhq
 |----------|-------------|
 | `PIXEL_OFFICE_PORT` | WebSocket server port (overridden by `--port`) |
 | `CLAUDE_CONFIG_DIR` | Claude config directory (overridden by `--claude-dir`) |
+| `CURSOR_CONFIG_DIR` | Cursor config directory (overridden by `--cursor-dir`) |
 
 ## Requirements
 
 - **Node.js 20+**
-- **Claude Code** installed (the server watches `~/.claude/projects/`)
+- At least one supported agent installed:
+  - **Claude Code** (watches `~/.claude/projects/`)
+  - **Cursor** (watches `~/.cursor/` or Application Support)
 - iOS app on the **same local network** (for Bonjour discovery)
 
 ---
@@ -183,7 +187,7 @@ npm test
                                                     iOS app (SpriteKit)
 ```
 
-1. **Watch** — Monitors Claude Code's append-only JSONL session files using chokidar
+1. **Watch** — Monitors session files (Claude Code, Cursor) using chokidar
 2. **Parse** — Parses each new line as JSON, routes to the correct adapter
 3. **Transform** — Adapter strips sensitive content, maps tools to categories, produces normalized events
 4. **Broadcast** — Sends events over WebSocket to connected clients on the local network

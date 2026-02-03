@@ -35,6 +35,12 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
       join(config.projectsDir, '*', '*', 'subagents', '*.jsonl'),
     ];
 
+    if (config.cursorSessionsDir) {
+      watchPatterns.push(join(config.cursorSessionsDir, '*', '*.jsonl'));
+      watchPatterns.push(join(config.cursorSessionsDir, '*.jsonl'));
+      logger.verbose('Watcher', `Adding Cursor watch path: ${config.cursorSessionsDir}`);
+    }
+
     logger.verbose('Watcher', 'Starting file watcher...');
 
     this.watcher = watch(watchPatterns, {
@@ -76,10 +82,10 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
         return;
       }
 
-      const { sessionId, agentId, project } = this.parseFilePath(filePath);
+      const { sessionId, agentId, project, source } = this.parseFilePath(filePath);
       const minutesAgo = Math.round(modifiedAgo / 60000);
 
-      logger.verbose('Watcher', `Tracking recent session: ${sessionId.slice(0, 8)}... (${minutesAgo}m ago)`);
+      logger.verbose('Watcher', `Tracking recent session (${source}): ${sessionId.slice(0, 8)}... (${minutesAgo}m ago)`);
 
       this.filePositions.set(filePath, stats.size);
       this.trackedSessions.add(sessionId);
@@ -90,6 +96,7 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
         project,
         filePath,
         action: 'discovered',
+        source,
       });
     } catch (err) {
       logger.error('Watcher', `Error reading file stats: ${(err as Error).message}`);
@@ -97,7 +104,7 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
   }
 
   async handleFileChange(filePath: string): Promise<void> {
-    const { sessionId, agentId } = this.parseFilePath(filePath);
+    const { sessionId, agentId, source } = this.parseFilePath(filePath);
     const previousPosition = this.filePositions.get(filePath) || 0;
 
     try {
@@ -110,7 +117,7 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
 
       if (!this.trackedSessions.has(sessionId)) {
         const { project } = this.parseFilePath(filePath);
-        logger.verbose('Watcher', `Session became active: ${sessionId.slice(0, 8)}...`);
+        logger.verbose('Watcher', `Session became active (${source}): ${sessionId.slice(0, 8)}...`);
         this.trackedSessions.add(sessionId);
 
         this.emit('session', {
@@ -119,6 +126,7 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
           project,
           filePath,
           action: 'discovered',
+          source,
         });
       }
 
@@ -132,6 +140,7 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
             sessionId,
             agentId,
             filePath,
+            source,
           });
         }
       }
@@ -163,6 +172,34 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
     const fileName = basename(filePath, '.jsonl');
     const dirPath = dirname(filePath);
 
+    // Check for Cursor
+    if (config.cursorDir && filePath.startsWith(config.cursorDir)) {
+      // Cursor may have workspace-based structure or flat structure
+      const relativePath = filePath.slice(config.cursorDir.length + 1);
+      const pathParts = relativePath.split('/');
+      
+      // If there's a workspace folder structure, extract project name
+      if (pathParts.length > 1) {
+        const workspaceId = pathParts[0];
+        const project = workspaceId.length > 8 ? workspaceId.slice(0, 8) : workspaceId;
+        return {
+          sessionId: fileName,
+          agentId: null,
+          project: `cursor-${project}`,
+          source: 'cursor',
+        };
+      }
+      
+      // Flat structure
+      return {
+        sessionId: fileName,
+        agentId: null,
+        project: 'cursor-session',
+        source: 'cursor',
+      };
+    }
+
+    // Default to Claude Code structure
     const isSubagent = dirPath.includes('/subagents');
 
     let sessionId: string;
@@ -185,6 +222,7 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
       sessionId,
       agentId,
       project: projectPath,
+      source: 'claude-code',
     };
   }
 }

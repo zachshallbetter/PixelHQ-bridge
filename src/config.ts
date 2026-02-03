@@ -79,6 +79,67 @@ export function resolveClaudeDir(): ResolvedClaudeDir {
 const resolved = resolveClaudeDir();
 
 // ---------------------------------------------------------------------------
+// Cursor directory auto-detection
+// ---------------------------------------------------------------------------
+
+interface ResolvedCursorDir {
+  cursorDir: string | null;
+  cursorSessionsDir: string | null;
+  resolvedVia: string | null;
+}
+
+export function resolveCursorDir(): ResolvedCursorDir {
+  const home = homedir();
+  const candidates = [
+    { path: getCliArg('cursor-dir'), via: '--cursor-dir flag' },
+    { path: process.env.CURSOR_CONFIG_DIR, via: 'CURSOR_CONFIG_DIR env' },
+    // Check for Cursor session files in common locations
+    { path: join(home, '.cursor'), via: 'default (~/.cursor)' },
+    { path: join(home, '.config', 'cursor'), via: 'XDG (~/.config/cursor)' },
+    // macOS Application Support location
+    { path: join(home, 'Library', 'Application Support', 'Cursor', 'User', 'workspaceStorage'), via: 'macOS Application Support' },
+  ];
+
+  for (const { path, via } of candidates) {
+    if (!path) continue;
+    
+    // Check if directory exists
+    if (existsSync(path)) {
+      // Try to find sessions directory
+      const sessions = join(path, 'sessions');
+      const projects = join(path, 'projects');
+      
+      // If sessions directory exists, use it
+      if (existsSync(sessions)) {
+        return {
+          cursorDir: path,
+          cursorSessionsDir: sessions,
+          resolvedVia: via,
+        };
+      }
+      // If projects directory exists (similar to Claude Code structure)
+      if (existsSync(projects)) {
+        return {
+          cursorDir: path,
+          cursorSessionsDir: projects,
+          resolvedVia: via,
+        };
+      }
+      // If the path itself exists, use it (will watch for *.jsonl files)
+      return {
+        cursorDir: path,
+        cursorSessionsDir: path,
+        resolvedVia: via,
+      };
+    }
+  }
+  
+  return { cursorDir: null, cursorSessionsDir: null, resolvedVia: null };
+}
+
+const resolvedCursor = resolveCursorDir();
+
+// ---------------------------------------------------------------------------
 // Bridge server configuration
 // ---------------------------------------------------------------------------
 
@@ -86,6 +147,9 @@ export const config = {
   claudeDir: resolved.claudeDir,
   projectsDir: resolved.projectsDir,
   claudeDirResolvedVia: resolved.resolvedVia,
+  cursorDir: resolvedCursor.cursorDir,
+  cursorSessionsDir: resolvedCursor.cursorSessionsDir,
+  cursorDirResolvedVia: resolvedCursor.resolvedVia,
   version: pkg.version,
   wsPort: Number(getCliArg('port') || process.env.PIXEL_OFFICE_PORT || 8765),
   bonjourName: 'Pixel Office Bridge',
