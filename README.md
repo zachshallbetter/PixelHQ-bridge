@@ -11,9 +11,9 @@ A local bridge server that watches AI coding agent session files and broadcasts 
 ### Supported Agents
 
 - **Claude Code** — fully supported today
+- **Antigravity** — fully supported
 - **Cursor** — coming soon
 - **Codex** — coming soon
-- **Antigravity** — coming soon
 - More to follow
 
 ## Quick Start
@@ -65,6 +65,7 @@ pixelhq
 |------|-------------|---------|
 | `--port <number>` | WebSocket server port | `8765` |
 | `--claude-dir <path>` | Path to Claude config directory | auto-detected |
+| `--antigravity-dir <path>` | Path to Antigravity config directory | auto-detected |
 | `--yes`, `-y` | Skip interactive prompts (non-interactive mode) | |
 | `--verbose` | Show detailed debug logging | |
 | `--help`, `-h` | Show help message | |
@@ -72,15 +73,18 @@ pixelhq
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `PIXEL_OFFICE_PORT` | WebSocket server port (overridden by `--port`) |
+| Variable            | Description                                            |
+| ------------------- | ------------------------------------------------------ |
+| `PIXEL_OFFICE_PORT` | WebSocket server port (overridden by `--port`)         |
 | `CLAUDE_CONFIG_DIR` | Claude config directory (overridden by `--claude-dir`) |
+| `ANTIGRAVITY_CONFIG_DIR` | Antigravity config directory (overridden by `--antigravity-dir`) |
 
 ## Requirements
 
 - **Node.js 20+**
-- **Claude Code** installed (the server watches `~/.claude/projects/`)
+- At least one supported agent installed:
+  - **Claude Code** (watches `~/.claude/projects/`)
+  - **Antigravity** (watches `~/.antigravity/` or `~/.config/antigravity/`)
 - iOS app on the **same local network** (for Bonjour discovery)
 
 ---
@@ -95,42 +99,42 @@ The bridge reads Claude Code's raw JSONL session logs — which contain everythi
 
 Only structural metadata needed to animate the pixel-art office:
 
-| Data | Example | Why |
-|------|---------|-----|
-| Event type | `"tool"`, `"activity"` | Determines animation |
-| Tool category | `"file_read"`, `"terminal"` | Character walks to correct desk |
-| Action | `"thinking"`, `"responding"` | Controls character animation |
-| Status | `"started"`, `"completed"` | Start/stop animation |
-| File basename | `"auth.ts"` | Shows on character's screen |
-| Grep/glob pattern | `"TODO"`, `"*.ts"` | Shows on character's screen |
-| Bash description | `"Run tests"` | The user-provided label, not the command |
-| Agent type | `"explore"`, `"plan"` | Spawns new character |
-| Token counts | `{ input: 5000, output: 200 }` | Numbers only |
-| Project name | `"pixel-office"` | Last path segment only |
-| Timestamps | ISO-8601 | Event ordering |
-| Session/event IDs | UUIDs | Correlation |
+| Data              | Example                        | Why                                      |
+| ----------------- | ------------------------------ | ---------------------------------------- |
+| Event type        | `"tool"`, `"activity"`         | Determines animation                     |
+| Tool category     | `"file_read"`, `"terminal"`    | Character walks to correct desk          |
+| Action            | `"thinking"`, `"responding"`   | Controls character animation             |
+| Status            | `"started"`, `"completed"`     | Start/stop animation                     |
+| File basename     | `"auth.ts"`                    | Shows on character's screen              |
+| Grep/glob pattern | `"TODO"`, `"*.ts"`             | Shows on character's screen              |
+| Bash description  | `"Run tests"`                  | The user-provided label, not the command |
+| Agent type        | `"explore"`, `"plan"`          | Spawns new character                     |
+| Token counts      | `{ input: 5000, output: 200 }` | Numbers only                             |
+| Project name      | `"pixel-office"`               | Last path segment only                   |
+| Timestamps        | ISO-8601                       | Event ordering                           |
+| Session/event IDs | UUIDs                          | Correlation                              |
 
 ### What is NOT broadcast
 
 All content is stripped before broadcast. This includes:
 
-| Sensitive data | How it's handled |
-|----------------|-----------------|
-| File contents | Stripped entirely — only the basename is kept |
-| Code (edits, writes) | Stripped — old/new strings never leave |
-| Bash commands | Stripped — only the optional `description` field is used |
-| Thinking text | Stripped — never included |
-| Assistant responses | Stripped — never included |
-| User prompts | Stripped — only the presence of a prompt is noted |
-| Tool result output | Stripped — only success/error status is kept |
-| Full file paths | Stripped to basename (`/Users/you/project/src/auth.ts` → `auth.ts`) |
-| Full project paths | Stripped to last segment (`/Users/you/Projects/my-app` → `my-app`) |
-| URLs (WebFetch) | Stripped entirely |
-| Search queries (WebSearch) | Stripped entirely |
-| Task prompts | Stripped — only the agent type (`explore`, `bash`) is kept |
-| Todo content | Stripped — only the count (`"3 items"`) is kept |
-| Error messages | Stripped — only the severity (`warning`/`error`) is kept |
-| API keys, secrets | Never included — content fields are never broadcast |
+| Sensitive data             | How it's handled                                                    |
+| -------------------------- | ------------------------------------------------------------------- |
+| File contents              | Stripped entirely — only the basename is kept                       |
+| Code (edits, writes)       | Stripped — old/new strings never leave                              |
+| Bash commands              | Stripped — only the optional `description` field is used            |
+| Thinking text              | Stripped — never included                                           |
+| Assistant responses        | Stripped — never included                                           |
+| User prompts               | Stripped — only the presence of a prompt is noted                   |
+| Tool result output         | Stripped — only success/error status is kept                        |
+| Full file paths            | Stripped to basename (`/Users/you/project/src/auth.ts` → `auth.ts`) |
+| Full project paths         | Stripped to last segment (`/Users/you/Projects/my-app` → `my-app`)  |
+| URLs (WebFetch)            | Stripped entirely                                                   |
+| Search queries (WebSearch) | Stripped entirely                                                   |
+| Task prompts               | Stripped — only the agent type (`explore`, `bash`) is kept          |
+| Todo content               | Stripped — only the count (`"3 items"`) is kept                     |
+| Error messages             | Stripped — only the severity (`warning`/`error`) is kept            |
+| API keys, secrets          | Never included — content fields are never broadcast                 |
 
 ### How stripping works
 
@@ -183,7 +187,7 @@ npm test
                                                     iOS app (SpriteKit)
 ```
 
-1. **Watch** — Monitors Claude Code's append-only JSONL session files using chokidar
+1. **Watch** — Monitors session files (Claude Code, Antigravity) using chokidar
 2. **Parse** — Parses each new line as JSON, routes to the correct adapter
 3. **Transform** — Adapter strips sensitive content, maps tools to categories, produces normalized events
 4. **Broadcast** — Sends events over WebSocket to connected clients on the local network

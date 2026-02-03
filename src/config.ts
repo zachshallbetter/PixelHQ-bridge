@@ -79,6 +79,64 @@ export function resolveClaudeDir(): ResolvedClaudeDir {
 const resolved = resolveClaudeDir();
 
 // ---------------------------------------------------------------------------
+// Antigravity directory auto-detection
+// ---------------------------------------------------------------------------
+
+interface ResolvedAntigravityDir {
+  antigravityDir: string | null;
+  antigravitySessionsDir: string | null;
+  resolvedVia: string | null;
+}
+
+export function resolveAntigravityDir(): ResolvedAntigravityDir {
+  const home = homedir();
+  const candidates = [
+    { path: getCliArg('antigravity-dir'), via: '--antigravity-dir flag' },
+    { path: process.env.ANTIGRAVITY_CONFIG_DIR, via: 'ANTIGRAVITY_CONFIG_DIR env' },
+    { path: join(home, '.antigravity'), via: 'default (~/.antigravity)' },
+    { path: join(home, '.config', 'antigravity'), via: 'XDG (~/.config/antigravity)' },
+  ];
+
+  for (const { path, via } of candidates) {
+    if (!path) continue;
+    
+    // Check if directory exists
+    if (existsSync(path)) {
+      // Try to find sessions directory
+      const sessions = join(path, 'sessions');
+      const projects = join(path, 'projects');
+      
+      // If sessions directory exists, use it
+      if (existsSync(sessions)) {
+        return {
+          antigravityDir: path,
+          antigravitySessionsDir: sessions,
+          resolvedVia: via,
+        };
+      }
+      // If projects directory exists (similar to Claude Code structure)
+      if (existsSync(projects)) {
+        return {
+          antigravityDir: path,
+          antigravitySessionsDir: projects,
+          resolvedVia: via,
+        };
+      }
+      // If the path itself exists, use it (will watch for *.jsonl files)
+      return {
+        antigravityDir: path,
+        antigravitySessionsDir: path,
+        resolvedVia: via,
+      };
+    }
+  }
+  
+  return { antigravityDir: null, antigravitySessionsDir: null, resolvedVia: null };
+}
+
+const resolvedAntigravity = resolveAntigravityDir();
+
+// ---------------------------------------------------------------------------
 // Bridge server configuration
 // ---------------------------------------------------------------------------
 
@@ -86,6 +144,9 @@ export const config = {
   claudeDir: resolved.claudeDir,
   projectsDir: resolved.projectsDir,
   claudeDirResolvedVia: resolved.resolvedVia,
+  antigravityDir: resolvedAntigravity.antigravityDir,
+  antigravitySessionsDir: resolvedAntigravity.antigravitySessionsDir,
+  antigravityDirResolvedVia: resolvedAntigravity.resolvedVia,
   version: pkg.version,
   wsPort: Number(getCliArg('port') || process.env.PIXEL_OFFICE_PORT || 8765),
   bonjourName: 'Pixel Office Bridge',
