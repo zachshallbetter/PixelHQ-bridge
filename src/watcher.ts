@@ -176,7 +176,7 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
         return {
             sessionId: fileName,
             agentId: null, // Antigravity flat structure support for now
-            project: 'antigravity', // TODO: Extract project if hierarchy exists
+            project: 'antigravity-session', // Flat structure has no project hierarchy yet
             source: 'antigravity'
         };
     }

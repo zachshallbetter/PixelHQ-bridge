@@ -149,9 +149,7 @@ async function showInteractiveMenu(
         customPort = parsedPort;
       }
 
-      if (!isNaN(parsedPort) && parsedPort > 0 && parsedPort < 65536) {
-        customPort = parsedPort;
-      }
+
 
       const claudeDefault = config.claudeDir || join(process.env.HOME || '', '.claude');
       const claudeMsg = config.claudeDir 
